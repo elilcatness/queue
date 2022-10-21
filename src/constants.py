@@ -9,3 +9,8 @@ MENU_STATUS_VERBOSES = {
     'planned': 'Запланированные',
     'archived': 'Архивированные'
 }
+VIEW_STATUS_VERBOSES = {
+    'active': 'Активна',
+    'planned': 'Запланирована',
+    'archived': 'Архивирована'
+}

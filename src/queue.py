@@ -1,7 +1,7 @@
 from telegram import Update, ParseMode, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import CallbackContext
 
-from src.constants import STATUS_VERBOSES, PAGINATION_STEP
+from src.constants import STATUS_VERBOSES, PAGINATION_STEP, VIEW_STATUS_VERBOSES
 from src.db.db_session import create_session
 from src.db.models.attendant import Attendant
 from src.db.models.queue import Queue
@@ -52,7 +52,8 @@ class QueueView:
                 context.bot.send_message(context.user_data['id'], 'Данной очереди не существует')
                 return menu(update, context)
             buttons = [[InlineKeyboardButton('Вернуться назад', callback_data='back')]]
-            if int(context.user_data['id']) not in [att.user_id for att in queue.attendants]:
+            if (int(context.user_data['id']) not in [att.user_id for att in queue.attendants]
+                    and queue.status == 'active'):
                 buttons.insert(0, [InlineKeyboardButton('Встать в очередь', callback_data=queue_id)])
             markup = InlineKeyboardMarkup(buttons)
             text = []
@@ -60,6 +61,8 @@ class QueueView:
                 val = getattr(queue, attr)
                 if 'dt' in attr:
                     val = val.strftime('%d.%m.%Y %H:%M:%S')
+                if attr == 'status':
+                    val = VIEW_STATUS_VERBOSES.get(val, val)
                 text.append(f'<b>{Queue.verbose_attrs.get(attr, attr)}:</b> {val}')
             if queue.attendants:
                 text.append('')
