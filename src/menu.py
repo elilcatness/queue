@@ -17,11 +17,13 @@ def ask_name(_, context):
 
 @delete_last_message
 def ask_surname(update, context):
-    name = update.message.text
-    if not name:
-        context.bot.send_message(context.user_data['id'], 'Не было введено имя')
-        return ask_name(update, context)
-    context.user_data['reg_data']['name'] = name
+    if (not context.user_data['q_add_data'].get('name')
+            or not hasattr(context.match, 'string') or context.match.string != 'back'):
+        name = update.message.text
+        if not name:
+            context.bot.send_message(context.user_data['id'], 'Не было введено имя')
+            return ask_name(update, context)
+        context.user_data['reg_data']['name'] = name
     markup = InlineKeyboardMarkup([[InlineKeyboardButton('Вернуться назад', callback_data='back')]])
     return (context.bot.send_message(
         context.user_data['id'], 'Введите свою фамилию', reply_markup=markup), 'ask_surname')
@@ -65,6 +67,8 @@ def menu(update, context):
             if session.query(Queue).filter(Queue.status == status).first():
                 buttons.append([InlineKeyboardButton(f'{MENU_STATUS_VERBOSES[status]} очереди',
                                                      callback_data=status)])
+        if user.is_admin:
+            buttons.append([InlineKeyboardButton('Добавить очередь', callback_data='add_queue')])
         markup, submsg = ((InlineKeyboardMarkup(buttons), '') if buttons else
                           (None, '\nНикаких очередей пока нет'))
         markup = InlineKeyboardMarkup(buttons) if buttons else None

@@ -8,7 +8,7 @@ from telegram.ext import (Updater, CommandHandler, MessageHandler,
 from src.db.db_session import global_init, create_session
 from src.db.models.state import State
 from src.menu import menu, ask_surname, finish_registration, ask_name
-from src.queue import QueueView
+from src.queue import QueueView, QueueAdd
 
 
 def load_states(updater: Updater, conv_handler: ConversationHandler):
@@ -29,15 +29,28 @@ def main():
         entry_points=[CommandHandler('start', menu)],
         allow_reentry=True,
         states={
-            'menu': [CallbackQueryHandler(QueueView.show_all, pattern='(active)|(planned)|(archived)')],
+            'menu': [CallbackQueryHandler(QueueView.show_all, pattern='(active)|(planned)|(archived)'),
+                     CallbackQueryHandler(QueueAdd.ask_name, pattern='add_queue')],
             'ask_name': [MessageHandler(Filters.text, ask_surname),
                          CallbackQueryHandler(menu, pattern='back')],
             'ask_surname': [MessageHandler(Filters.text, finish_registration),
                             CallbackQueryHandler(ask_name, pattern='back')],
             'queues': [CallbackQueryHandler(QueueView.show, pattern='[0-9]+'),
+                       CallbackQueryHandler(QueueView.set_next_page, pattern='next_page'),
+                       CallbackQueryHandler(QueueView.show_all, pattern='refresh'),
+                       CallbackQueryHandler(QueueView.set_previous_page, pattern='prev_page'),
+                       MessageHandler(Filters.regex('[0-9]+'), QueueView.set_page),
                        CallbackQueryHandler(menu, pattern='back')],
             'queue': [CallbackQueryHandler(QueueView.register, pattern='[0-9]+'),
-                      CallbackQueryHandler(QueueView.show_all, pattern='back')]
+                      CallbackQueryHandler(QueueView.show_all, pattern='back')],
+            'QueueAdd.ask_name': [MessageHandler(Filters.text, QueueAdd.ask_start_dt),
+                                  CallbackQueryHandler(menu, pattern='back')],
+            'QueueAdd.ask_start_dt': [MessageHandler(Filters.text, QueueAdd.ask_end_dt),
+                                      CallbackQueryHandler(QueueAdd.ask_name, pattern='back')],
+            'QueueAdd.ask_end_dt': [MessageHandler(Filters.text, QueueAdd.ask_notify_dt),
+                                    CallbackQueryHandler(QueueAdd.ask_start_dt, pattern='back')],
+            'QueueAdd.ask_notify_dt': [MessageHandler(Filters.text, QueueAdd.finish),
+                                       CallbackQueryHandler(QueueAdd.ask_end_dt, pattern='back')],
         },
         fallbacks=[CommandHandler('start', menu)])
     updater.dispatcher.add_handler(conv_handler)

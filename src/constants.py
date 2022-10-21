@@ -14,3 +14,5 @@ VIEW_STATUS_VERBOSES = {
     'planned': 'Запланирована',
     'archived': 'Архивирована'
 }
+MIN_DELTA = 300
+MIN_DUR = 1200

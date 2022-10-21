@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import BadRequest
@@ -63,3 +64,13 @@ def build_pagination(array: list, pag_step: int, current_page: int):
         buttons.append(pag_block)
     buttons.append([InlineKeyboardButton('Вернуться назад', callback_data='back')])
     return InlineKeyboardMarkup(buttons), pages_count
+
+
+def parse_dt(raw_str: str) -> datetime:
+    try:
+        d, t = raw_str.split()
+        day, month, year = map(int, d.split('.'))
+        hour, minute, second = map(int, t.split(':'))
+        return datetime(year, month, day, hour, minute, second)
+    except ValueError:
+        return 'Неверный формат даты'
