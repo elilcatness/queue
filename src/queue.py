@@ -132,7 +132,7 @@ class QueueView:
                 context.bot.send_message(context.user_data['id'], 'Данной очереди не существует')
                 return menu(update, context)
             buttons = [[InlineKeyboardButton('Вернуться назад', callback_data='back')]]
-            if (int(context.user_data['id']) not in [att.user_id for att in queue.attendants]
+            if (context.user_data['id'] not in [att.user_id for att in queue.attendants]
                     and queue.status == 'active'):
                 buttons.insert(0, [InlineKeyboardButton('Встать в очередь', callback_data=queue_id)])
             markup = InlineKeyboardMarkup(buttons)
