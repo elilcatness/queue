@@ -1,4 +1,4 @@
-PAGINATION_STEP = 2
+PAGINATION_STEP = 10
 STATUS_VERBOSES = {
     'active': 'активных',
     'planned': 'запланированных',
