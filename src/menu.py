@@ -77,8 +77,7 @@ def menu(update, context):
                                                      callback_data=status)])
         if user.is_admin:
             buttons.append([InlineKeyboardButton('Добавить очередь', callback_data='add_queue')])
-        markup, submsg = ((InlineKeyboardMarkup(buttons),
-                           '\n\nНикаких очередей пока нет') if buttons else
+        markup, submsg = ((InlineKeyboardMarkup(buttons), '') if buttons else
                           (None, '\n\nНикаких очередей пока нет'))
         markup = InlineKeyboardMarkup(buttons) if buttons else None
     return context.bot.send_message(
