@@ -13,6 +13,77 @@ from src.menu import menu
 from src.utils import build_pagination, delete_last_message, parse_dt
 
 
+def notify_queue(context: CallbackContext):
+    try:
+        queue_id = int(context.job.name)
+    except ValueError:
+        return print(f'[notify_queue] Something went wrong on {context.job.name=}')
+    with create_session() as session:
+        q = session.query(Queue).get(queue_id)
+        if not q:
+            return print(f'[notify_queue] No queue with id = {queue_id}')
+        if q.notification_sent:
+            return print(f'[notify_queue] Notification has already been sent')
+        for user in session.query(User).all():
+            context.bot.send_message(
+                user.id, f'Очередь <b>{q.name}</b> откроется в '
+                         f'<b>{q.start_dt.strftime("%d.%m.%Y %H:%M")}</b>',
+                parse_mode=ParseMode.HTML)
+        q.notification_sent = True
+        session.add(q)
+        session.commit()
+
+
+def open_queue(context: CallbackContext):
+    try:
+        queue_id = int(context.job.name)
+    except ValueError:
+        return print(f'[open_queue] Something went wrong on {context.job.name=}')
+    with create_session() as session:
+        q = session.query(Queue).get(queue_id)
+        if not q:
+            return print(f'[open_queue] No queue with id = {queue_id}')
+        if q.status != 'planned':
+            return print(f'[open_queue] {q.status=} on {context.job.name=}')
+        q.status = 'active'
+        session.add(q)
+        session.commit()
+        text = []
+        for attr in Queue.verbose_attrs:
+            val = getattr(q, attr)
+            if 'dt' in attr:
+                val = val.strftime('%d.%m.%Y %H:%M:%S')
+            if attr == 'status':
+                val = VIEW_STATUS_VERBOSES.get(val, val)
+            text.append(f'<b>{Queue.verbose_attrs.get(attr, attr)}:</b> {val}')
+        markup = InlineKeyboardMarkup([
+            [InlineKeyboardButton('Встать в очередь', callback_data=f'reg {q.id}')]])
+        for user in session.query(User).all():
+            context.bot.send_message(
+                user.id,
+                f'<b>Открылась новая очередь!</b>\n\n' + '\n'.join(text),
+                reply_markup=markup, parse_mode=ParseMode.HTML)
+
+
+def close_queue(context: CallbackContext):
+    try:
+        queue_id = int(context.job.name)
+    except ValueError:
+        return print(f'[close_queue] Something went wrong on {context.job.name=}')
+    with create_session() as session:
+        q = session.query(Queue).get(queue_id)
+        if not q:
+            return print(f'[close_queue] No queue with id = {queue_id}')
+        if q.status != 'active':
+            return print(f'[close_queue] {q.status=} on {context.job.name=}')
+        for user in session.query(User).all():
+            context.bot.send_message(user.id, f'Очередь <b>{q.name}</b> была закрыта',
+                                     parse_mode=ParseMode.HTML)
+        q.status = 'archived'
+        session.add(q)
+        session.commit()
+
+
 class QueueView:
     @staticmethod
     @delete_last_message
@@ -21,6 +92,8 @@ class QueueView:
         if not status:
             context.bot.send_message(context.user_data['id'], 'Эээээ.... штота не так с кнопками')
             return menu(update, context)
+        if status not in ('planned', 'active', 'archived'):
+            status = context.user_data.get('last_queue_status')
         with create_session() as session:
             queues = [(f'{q.name} [{q.start_dt.strftime("%d.%m.%Y %H:%M")} – '
                        f'{q.end_dt.strftime("%d.%m.%Y %H:%M")}]', q.id)
@@ -29,6 +102,7 @@ class QueueView:
                 context.bot.send_message(context.user_data['id'],
                                          f'Очередей со статусом {status} пока нет!')
                 return menu(update, context)
+            context.user_data['last_queue_status'] = status
             if not context.user_data.get('pagination'):
                 context.user_data['pagination'] = 1
             markup, pages_count = build_pagination(
@@ -36,9 +110,9 @@ class QueueView:
             context.user_data['pages_count'] = pages_count
             return (context.bot.send_message(
                 context.user_data['id'],
-                f'Найдено {len(queues)} {STATUS_VERBOSES.get(status, "")} очередей'
-                '\nДля выбора страницы в пагинации также можно отправить её номер',
-                reply_markup=markup),
+                f'Найдено <b>{len(queues)} {STATUS_VERBOSES.get(status, "")}</b> очередей'
+                '\n\n<i>Для выбора страницы в пагинации также можно отправить её номер</i>',
+                reply_markup=markup, parse_mode=ParseMode.HTML),
                     'queues')
 
     @staticmethod
@@ -47,8 +121,11 @@ class QueueView:
         try:
             queue_id = int(context.match.string)
         except ValueError:
-            context.bot.send_message(context.user_data['id'], 'Что-то не так с переходом')
-            return menu(update, context)
+            try:
+                queue_id = int(context.match.string.split('reg')[-1].strip())
+            except ValueError:
+                context.bot.send_message(context.user_data['id'], 'Что-то не так с переходом')
+                return menu(update, context)
         with create_session() as session:
             queue = session.query(Queue).get(queue_id)
             if not queue:
@@ -84,8 +161,11 @@ class QueueView:
         try:
             queue_id = int(context.match.string)
         except ValueError:
-            context.bot.send_message(context.user_data['id'], 'Потерялся ID очереди...')
-            return menu(update, context)
+            try:
+                queue_id = int(context.match.string.split('reg')[-1].strip())
+            except ValueError:
+                context.bot.send_message(context.user_data['id'], 'Потерялся ID очереди...')
+                return menu(update, context)
         with create_session() as session:
             user = session.query(User).get(context.user_data['id'])
             if not user:
@@ -94,7 +174,7 @@ class QueueView:
             if not queue:
                 context.bot.send_message(context.user_data['id'], 'Очередь пропала...')
                 return menu(update, context)
-            if user in queue.attendants:
+            if user.id in [att.user_id for att in queue.attendants]:
                 context.bot.send_message(context.user_data['id'], 'Вы уже встали в эту очередь')
                 return QueueView.show(update, context)
             att = Attendant(user_id=user.id, queue_id=queue.id, position=len(queue.attendants) + 1)
@@ -111,10 +191,12 @@ class QueueView:
     @staticmethod
     def set_next_page(_, context):
         context.user_data['pagination'] += 1
+        return QueueView.show_all(_, context)
 
     @staticmethod
     def set_previous_page(_, context):
         context.user_data['pagination'] -= 1
+        return QueueView.show_all(_, context)
 
     @staticmethod
     def set_page(update, context):
@@ -123,6 +205,7 @@ class QueueView:
             update.message.reply_text('Введён неверный номер страницы')
         else:
             context.user_data['pagination'] = n
+        return QueueView.show_all(update, context)
 
 
 class QueueAdd:
@@ -137,13 +220,16 @@ class QueueAdd:
     @staticmethod
     @delete_last_message
     def ask_start_dt(update: Update, context: CallbackContext):
-        if (not context.user_data['q_add_data'].get('name')
-                or not hasattr(context.match, 'string') or context.match.string != 'back'):
+        # if (context.user_data['q_add_data'].get('name') and
+        #         (not hasattr(context.match, 'string') or context.match.string != 'back')
+        #         or not context.user_data['q_add_data'].get('name')):
+        if not context.user_data['q_add_data'].get('name'):
             name = update.message.text
             with create_session() as session:
                 if session.query(Queue).filter(func.lower(Queue.name) == func.lower(name)).first():
                     context.bot.send_message(context.user_data['id'],
-                                             f'Очередь с названием {name} уже существует')
+                                             f'Очередь с названием <b>{name}</b> уже существует',
+                                             parse_mode=ParseMode.HTML)
                     return QueueAdd.ask_name(update, context)
             context.user_data['q_add_data']['name'] = name
         markup = InlineKeyboardMarkup([[InlineKeyboardButton('Вернуться назад', callback_data='back')]])
@@ -156,8 +242,7 @@ class QueueAdd:
     @staticmethod
     @delete_last_message
     def ask_end_dt(update: Update, context: CallbackContext):
-        if (not context.user_data['q_add_data'].get('start_dt')
-                or not hasattr(context.match, 'string') or context.match.string != 'back'):
+        if not context.user_data['q_add_data'].get('start_dt'):
             start_dt = parse_dt(update.message.text)
             if isinstance(start_dt, str):
                 context.bot.send_message(context.user_data['id'], start_dt)
@@ -177,15 +262,13 @@ class QueueAdd:
     @staticmethod
     @delete_last_message
     def ask_notify_dt(update: Update, context: CallbackContext):
-        if (not context.user_data['q_add_data'].get('end_dt')
-                or not hasattr(context.match, 'string') or context.match.string != 'back'):
+        if not context.user_data['q_add_data'].get('end_dt'):
             end_dt = parse_dt(update.message.text)
             if isinstance(end_dt, str):
                 context.bot.send_message(context.user_data['id'], end_dt)
                 return QueueAdd.ask_end_dt(update, context)
             start_dt = datetime.fromisoformat(context.user_data['q_add_data']['start_dt'])
             if (end_dt - start_dt).total_seconds() < MIN_DUR:
-                print(f'Очередь должна быть открыта хотя бы {MIN_DUR} секунд')
                 context.bot.send_message(
                     context.user_data['id'],
                     f'Очередь должна быть открыта хотя бы {MIN_DUR} секунд')
@@ -203,7 +286,7 @@ class QueueAdd:
         notify_dt = parse_dt(update.message.text)
         if isinstance(notify_dt, str):
             context.bot.send_message(context.user_data['id'], notify_dt)
-            return QueueAdd.ask_end_dt(update, context)
+            return QueueAdd.ask_notify_dt(update, context)
         if notify_dt < datetime.utcnow() + timedelta(hours=3):
             context.bot.send_message(context.user_data['id'], 'Не живите прошлым!')
             return QueueAdd.ask_notify_dt(update, context)
@@ -214,16 +297,25 @@ class QueueAdd:
                 f'Оповещение должно быть отправлено не позднее, '
                 f'чем за {MIN_DELTA} секунд до открытия очереди')
             return QueueAdd.ask_notify_dt(update, context)
-
+        end_dt = datetime.fromisoformat(context.user_data['q_add_data']['end_dt'])
         with create_session() as session:
             q = Queue(name=context.user_data['q_add_data']['name'],
                       start_dt=start_dt,
-                      end_dt=datetime.fromisoformat(context.user_data['q_add_data']['end_dt']),
+                      end_dt=end_dt,
                       notify_dt=notify_dt)
             session.add(q)
             session.commit()
             context.bot.send_message(
                 context.user_data['id'], f'Очередь <b>{q.name}</b> была успешно добавлена',
                 parse_mode=ParseMode.HTML)
+            context.job_queue.run_once(
+                notify_queue, (notify_dt - datetime.utcnow() - timedelta(hours=3)).total_seconds(),
+                context=context, name=str(q.id))
+            context.job_queue.run_once(
+                open_queue, (start_dt - datetime.utcnow() - timedelta(hours=3)).total_seconds(),
+                context=context, name=str(q.id))
+            context.job_queue.run_once(
+                close_queue, (end_dt - datetime.utcnow() - timedelta(hours=3)).total_seconds(),
+                context=context, name=str(q.id))
         context.user_data.pop('q_add_data')
         return menu(update, context)

@@ -1,14 +1,16 @@
 import json
 import os
+from datetime import datetime, timedelta
 
 from dotenv import load_dotenv
 from telegram.ext import (Updater, CommandHandler, MessageHandler,
                           ConversationHandler, CallbackContext, Filters, CallbackQueryHandler)
 
 from src.db.db_session import global_init, create_session
+from src.db.models.queue import Queue
 from src.db.models.state import State
 from src.menu import menu, ask_surname, finish_registration, ask_name
-from src.queue import QueueView, QueueAdd
+from src.queue import QueueView, QueueAdd, notify_queue, open_queue, close_queue
 
 
 def load_states(updater: Updater, conv_handler: ConversationHandler):
@@ -21,6 +23,27 @@ def load_states(updater: Updater, conv_handler: ConversationHandler):
             context._bot = updater.bot
             for job in updater.dispatcher.job_queue.get_jobs_by_name('process'):
                 job.schedule_removal()
+
+
+def start_jobs(dispatcher, bot):
+    context = CallbackContext(dispatcher)
+    context._bot = bot
+    with create_session() as session:
+        for q in session.query(Queue).filter(Queue.status != 'archived').all():
+            if q.status == 'planned':
+                if not q.notification_sent:
+                    secs = (q.notify_dt - datetime.utcnow() - timedelta(hours=3)).total_seconds()
+                    context.job_queue.run_once(
+                        notify_queue, secs if secs >= 0 else 0,
+                        context=context, name=str(q.id))
+                secs = (q.start_dt - datetime.utcnow() - timedelta(hours=3)).total_seconds()
+                context.job_queue.run_once(
+                    open_queue, secs if secs >= 0 else 0,
+                    context=context, name=str(q.id))
+            secs = (q.end_dt - datetime.utcnow() - timedelta(hours=3)).total_seconds()
+            context.job_queue.run_once(
+                close_queue, secs if secs >= 0 else 0,
+                context=context, name=str(q.id))
 
 
 def main():
@@ -52,9 +75,11 @@ def main():
             'QueueAdd.ask_notify_dt': [MessageHandler(Filters.text, QueueAdd.finish),
                                        CallbackQueryHandler(QueueAdd.ask_end_dt, pattern='back')],
         },
-        fallbacks=[CommandHandler('start', menu)])
+        fallbacks=[CommandHandler('start', menu),
+                   CallbackQueryHandler(QueueView.register, pattern='reg [0-9]+')])
     updater.dispatcher.add_handler(conv_handler)
     load_states(updater, conv_handler)
+    start_jobs(updater.dispatcher, updater.bot)
     updater.start_polling()
     updater.idle()
 

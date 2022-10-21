@@ -1,3 +1,5 @@
+import os
+
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ParseMode
 
 from src.constants import MENU_STATUS_VERBOSES
@@ -17,7 +19,7 @@ def ask_name(_, context):
 
 @delete_last_message
 def ask_surname(update, context):
-    if (not context.user_data['q_add_data'].get('name')
+    if (not context.user_data['reg_data'].get('name')
             or not hasattr(context.match, 'string') or context.match.string != 'back'):
         name = update.message.text
         if not name:
@@ -44,7 +46,8 @@ def finish_registration(update, context):
             context.bot.send_message(context.user_data['id'],
                                      f'Пользователь {name} {surname} уже есть в базе')
             return ask_name(update, context)
-        user = User(id=context.user_data['id'], name=name, surname=surname)
+        user = User(id=context.user_data['id'], name=name, surname=surname,
+                    is_admin=str(context.user_data['id']) == os.getenv('super_admin_id', ''))
         session.add(user)
         session.commit()
     context.bot.send_message(context.user_data['id'], 'Регистрация была успешно завершена')
@@ -53,8 +56,13 @@ def finish_registration(update, context):
 
 @delete_last_message
 def menu(update, context):
-    user_id = update.message.from_user.id
-    context.user_data['id'] = user_id
+    if update.message is not None:
+        user_id = update.message.from_user.id
+        context.user_data['id'] = user_id
+    elif context.user_data.get('id') is not None:
+        user_id = context.user_data['id']
+    else:
+        return 'menu'
     with create_session() as session:
         user = session.query(User).get(user_id)
         if not user:
@@ -69,8 +77,9 @@ def menu(update, context):
                                                      callback_data=status)])
         if user.is_admin:
             buttons.append([InlineKeyboardButton('Добавить очередь', callback_data='add_queue')])
-        markup, submsg = ((InlineKeyboardMarkup(buttons), '') if buttons else
-                          (None, '\nНикаких очередей пока нет'))
+        markup, submsg = ((InlineKeyboardMarkup(buttons),
+                           '\n\nНикаких очередей пока нет') if buttons else
+                          (None, '\n\nНикаких очередей пока нет'))
         markup = InlineKeyboardMarkup(buttons) if buttons else None
     return context.bot.send_message(
         context.user_data['id'], f'<b>Пользователь:</b> {user.name} {user.surname}{submsg}',

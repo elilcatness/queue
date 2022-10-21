@@ -1,4 +1,4 @@
-PAGINATION_STEP = 10
+PAGINATION_STEP = 2
 STATUS_VERBOSES = {
     'active': 'активных',
     'planned': 'запланированных',
@@ -14,5 +14,5 @@ VIEW_STATUS_VERBOSES = {
     'planned': 'Запланирована',
     'archived': 'Архивирована'
 }
-MIN_DELTA = 300
-MIN_DUR = 1200
+MIN_DELTA = 5  # 300
+MIN_DUR = 120  # 1200

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String, DateTime, Boolean
 from sqlalchemy.orm import relation
 
 from src.db.db_session import SQLAlchemyBase
@@ -16,4 +16,5 @@ class Queue(SQLAlchemyBase):
     end_dt = Column(DateTime)
     notify_dt = Column(DateTime)
     status = Column(String, default='planned')
+    notification_sent = Column(Boolean, default=False)
     attendants = relation('Attendant')
