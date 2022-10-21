@@ -31,7 +31,7 @@ def delete_last_message(func):
     return wrapper
 
 
-def save_state(user_id: int, callback: str, data: dict):
+def save_state(user_id: str, callback: str, data: dict):
     with create_session() as session:
         state = session.query(State).get(user_id)
         str_data = json.dumps(data)

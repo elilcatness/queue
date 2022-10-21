@@ -57,7 +57,7 @@ def finish_registration(update, context):
 @delete_last_message
 def menu(update, context):
     if update.message is not None:
-        user_id = update.message.from_user.id
+        user_id = str(update.message.from_user.id)
         context.user_data['id'] = user_id
     elif context.user_data.get('id') is not None:
         user_id = context.user_data['id']

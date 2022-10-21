@@ -174,6 +174,9 @@ class QueueView:
             if not queue:
                 context.bot.send_message(context.user_data['id'], 'Очередь пропала...')
                 return menu(update, context)
+            if queue.status != 'active':
+                context.bot.send_message(context.user_data['id'], 'Очередь ещё не открыта')
+                return QueueView.show(update, context)
             if user.id in [att.user_id for att in queue.attendants]:
                 context.bot.send_message(context.user_data['id'], 'Вы уже встали в эту очередь')
                 return QueueView.show(update, context)
