@@ -131,7 +131,7 @@ class QueueView:
             if not queue:
                 context.bot.send_message(context.user_data['id'], 'Данной очереди не существует')
                 return menu(update, context)
-            buttons = [[InlineKeyboardButton('Обновить'), callback_data=f'refresh {queue.id}',
+            buttons = [[InlineKeyboardButton('Обновить', callback_data=f'refresh {queue.id}'),
                         InlineKeyboardButton('Вернуться назад', callback_data='back')]]
             if (context.user_data['id'] not in [att.user_id for att in queue.attendants]
                     and queue.status == 'active'):
