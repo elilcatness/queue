@@ -65,6 +65,7 @@ def main():
                        MessageHandler(Filters.regex('[0-9]+'), QueueView.set_page),
                        CallbackQueryHandler(menu, pattern='back')],
             'queue': [CallbackQueryHandler(QueueView.register, pattern='[0-9]+'),
+                      CallbackQueryHandler(QueueView.show, pattern='refresh [0-9]+'),
                       CallbackQueryHandler(QueueView.show_all, pattern='back')],
             'QueueAdd.ask_name': [MessageHandler(Filters.text, QueueAdd.ask_start_dt),
                                   CallbackQueryHandler(menu, pattern='back')],

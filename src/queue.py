@@ -122,7 +122,7 @@ class QueueView:
             queue_id = int(context.match.string)
         except ValueError:
             try:
-                queue_id = int(context.match.string.split('reg')[-1].strip())
+                queue_id = int(context.match.string.split()[-1].strip())
             except ValueError:
                 context.bot.send_message(context.user_data['id'], 'Что-то не так с переходом')
                 return menu(update, context)
@@ -131,7 +131,8 @@ class QueueView:
             if not queue:
                 context.bot.send_message(context.user_data['id'], 'Данной очереди не существует')
                 return menu(update, context)
-            buttons = [[InlineKeyboardButton('Вернуться назад', callback_data='back')]]
+            buttons = [[InlineKeyboardButton('Обновить'), callback_data=f'refresh {queue.id}',
+                        InlineKeyboardButton('Вернуться назад', callback_data='back')]]
             if (context.user_data['id'] not in [att.user_id for att in queue.attendants]
                     and queue.status == 'active'):
                 buttons.insert(0, [InlineKeyboardButton('Встать в очередь', callback_data=queue_id)])
@@ -162,7 +163,7 @@ class QueueView:
             queue_id = int(context.match.string)
         except ValueError:
             try:
-                queue_id = int(context.match.string.split('reg')[-1].strip())
+                queue_id = int(context.match.string.split()[-1].strip())
             except ValueError:
                 context.bot.send_message(context.user_data['id'], 'Потерялся ID очереди...')
                 return menu(update, context)
