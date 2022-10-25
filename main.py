@@ -3,6 +3,7 @@ import os
 from datetime import datetime, timedelta
 
 from dotenv import load_dotenv
+from telegram import Update
 from telegram.ext import (Updater, CommandHandler, MessageHandler,
                           ConversationHandler, CallbackContext, Filters, CallbackQueryHandler)
 
@@ -46,6 +47,13 @@ def start_jobs(dispatcher, bot):
                 context=context, name=str(q.id))
 
 
+def register_by_name(update: Update, context: CallbackContext):
+    if not update.message.text:
+        return context.bot.send_message(context.user_data['id'], 'Сообщение пустое')
+    context.user_data['queue_name'] = update.message.text
+    return QueueView.register(update, context)
+
+
 def main():
     updater = Updater(os.getenv('token'))
     conv_handler = ConversationHandler(
@@ -53,7 +61,8 @@ def main():
         allow_reentry=True,
         states={
             'menu': [CallbackQueryHandler(QueueView.show_all, pattern='(active)|(planned)|(archived)'),
-                     CallbackQueryHandler(QueueAdd.ask_name, pattern='add_queue')],
+                     CallbackQueryHandler(QueueAdd.ask_name, pattern='add_queue'),
+                     MessageHandler(Filters.text, register_by_name)],
             'ask_name': [MessageHandler(Filters.text, ask_surname),
                          CallbackQueryHandler(menu, pattern='back')],
             'ask_surname': [MessageHandler(Filters.text, finish_registration),

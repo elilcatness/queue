@@ -159,19 +159,25 @@ class QueueView:
     @staticmethod
     @delete_last_message
     def register(update: Update, context: CallbackContext):
-        try:
-            queue_id = int(context.match.string)
-        except ValueError:
-            try:
-                queue_id = int(context.match.string.split()[-1].strip())
-            except ValueError:
-                context.bot.send_message(context.user_data['id'], 'Потерялся ID очереди...')
-                return menu(update, context)
+        q_name = None
         with create_session() as session:
+            if context.user_data.get('queue_name'):
+                q_name = context.user_data.pop('queue_name').strip()
+                queue = session.query(Queue).filter(
+                    func.lower(Queue.name) == func.lower(q_name)).first()
+            else:
+                try:
+                    queue_id = int(context.match.string)
+                except ValueError:
+                    try:
+                        queue_id = int(context.match.string.split()[-1].strip())
+                    except ValueError:
+                        context.bot.send_message(context.user_data['id'], 'Потерялся ID очереди...')
+                        return menu(update, context)
+                queue = session.query(Queue).get(queue_id)
             user = session.query(User).get(context.user_data['id'])
             if not user:
                 return menu(update, context)
-            queue = session.query(Queue).get(queue_id)
             if not queue:
                 context.bot.send_message(context.user_data['id'], 'Очередь пропала...')
                 return menu(update, context)
@@ -190,7 +196,9 @@ class QueueView:
             context.bot.send_message(
                 context.user_data['id'], f'Вы успешно встали в очередь <b>{queue.name}</b>',
                 parse_mode=ParseMode.HTML)
-            return QueueView.show(update, context)
+            if q_name is not None:
+                return QueueView.show(update, context)
+            return menu(update, context)
 
     @staticmethod
     def set_next_page(_, context):
