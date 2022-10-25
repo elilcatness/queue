@@ -196,7 +196,7 @@ class QueueView:
             context.bot.send_message(
                 context.user_data['id'], f'Вы успешно встали в очередь <b>{queue.name}</b>',
                 parse_mode=ParseMode.HTML)
-            if q_name is not None:
+            if q_name is None:
                 return QueueView.show(update, context)
             return menu(update, context)
 
